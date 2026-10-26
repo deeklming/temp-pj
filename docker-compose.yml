@@ -1,0 +1,64 @@
+services:
+  valkey:
+    image: docker.io/valkey/valkey:9-alpine
+    container_name: valkey
+    command: valkey-server /usr/local/etc/valkey/valkey.conf
+    logging:
+      driver: json-file
+      options:
+        max-size: "15m"
+        max-file: "1"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+          pids: "50"
+    restart: on-failure #unless-stopped
+    networks:
+      - devnet
+    ports:
+      - "6379:6379"
+    # expose:
+    #   - "6379"
+    volumes:
+      - /home/user/dev/valkey:/data #windows wsl2(debian 계열만 가능)
+      # - ~/dev/valkey:/data #linux, macos
+      # - ./dev/valkey:/data #localhost
+      - ./valkey.conf:/usr/local/etc/valkey/valkey.conf
+    labels:
+      - "valkey_dev"
+    stdin_open: true
+    tty: true
+
+  valkey_admin:
+    image: docker.io/valkey/valkey-admin:1.1.0
+    container_name: valkey_admin
+    logging:
+      driver: json-file
+      options:
+        max-size: "15m"
+        max-file: "1"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+          pids: "50"
+    restart: on-failure #unless-stopped
+    networks:
+      - devnet
+    ports:
+      - "6380:8080"
+    environment:
+      DEPLOYMENT_MODE: Web
+    labels:
+      - "valkey_admin_dev"
+    stdin_open: true
+    tty: true
+
+networks:
+  devnet:
+    external: true

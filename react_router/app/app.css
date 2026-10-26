@@ -1,0 +1,62 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+	--font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--color-background: #faf9f6;
+	--color-foreground: #272d2a;
+	--color-card: #ffffff;
+	--color-primary: #346650;
+	--color-primary-foreground: #ffffff;
+	--color-secondary: #eeede7;
+	--color-secondary-foreground: #272d2a;
+	--color-muted: #eeede7;
+	--color-muted-foreground: #626b64;
+	--color-accent: #e9eee8;
+	--color-accent-foreground: #272d2a;
+	--color-destructive: #b33c32;
+	--color-border: #dddfd6;
+	--color-input: #c7cdc2;
+	--color-ring: #346650;
+	--radius-sm: 0.35rem;
+	--radius-md: 0.5rem;
+	--radius-lg: 0.75rem;
+	--radius-xl: 1rem;
+}
+@layer base {
+	* {
+		@apply border-border;
+	}
+	html {
+		@apply bg-background text-foreground;
+		color-scheme: light;
+	}
+	body {
+		margin: 0;
+		min-width: 320px;
+	}
+	button,
+	select {
+		cursor: pointer;
+	}
+	button:disabled,
+	select:disabled {
+		cursor: default;
+	}
+	a,
+	button,
+	input,
+	textarea,
+	select {
+		@apply outline-ring;
+	}
+	a:focus-visible,
+	button:focus-visible,
+	select:focus-visible {
+		outline: 2px solid;
+		outline-offset: 4px;
+	}
+	::selection {
+		background: #d6e5d6;
+	}
+}

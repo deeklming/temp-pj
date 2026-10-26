@@ -1,0 +1,9 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"files": { "includes": ["**", "!!**/db/migrations", "!!bun.lock"] },
+	"formatter": { "indentStyle": "tab", "lineWidth": 110 },
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"linter": { "enabled": true, "rules": { "preset": "recommended" } },
+	"css": { "parser": { "tailwindDirectives": true } }
+}
