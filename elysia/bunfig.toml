@@ -1,0 +1,7 @@
+env = false # Disable automatic .env file loading
+
+[install]
+minimumReleaseAge = 604800 #7 days, 최소 7일 지난 것만 설치 갑작스런 악성코드 설치 미리 막는 용도
+
+# [install.security]
+# scanner = "@socketsecurity/bun-security-scanner"

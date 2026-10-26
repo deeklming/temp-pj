@@ -1,0 +1,11 @@
+*.log
+.env*
+env.*
+
+.DS_Store
+/node_modules/
+
+# React Router
+/.react-router/
+/build/
+/public/.well-known/appspecific/com.chrome.devtools.json
