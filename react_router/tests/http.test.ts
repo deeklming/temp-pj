@@ -88,6 +88,9 @@ test("production HTTP routes support three-locale CRUD, sessions and origin prot
 		}
 		assert.equal((await get("/missing-page")).status, 404);
 		assert.equal((await get("/poem/write")).status, 302);
+		const anonymousChat = await get("/chat");
+		assert.equal(anonymousChat.status, 302);
+		assert.equal(anonymousChat.headers.get("location"), "/sign/in?returnTo=%2Fchat");
 		const signup = await submit("/sign/up", {
 			email,
 			nickname: "Smoke Author",
@@ -98,6 +101,17 @@ test("production HTTP routes support three-locale CRUD, sessions and origin prot
 		assert.equal(signup.headers.get("location"), "/poem");
 		assert.match(cookie, /^temppj_session=[a-f0-9]{64}$/);
 		assert.match(await (await get("/poem")).text(), /Smoke Author/);
+		for (const [language, title] of Object.entries({
+			"en-US": "Public chat",
+			"ko-KR": "공용 채팅",
+			"ja-JP": "公開チャット",
+		})) {
+			const chat = await get("/chat", language);
+			assert.equal(chat.status, 200);
+			const html = await chat.text();
+			assert.ok(html.includes(title) && html.includes('id="chat-message"'));
+			assert.ok(html.includes('href="/chat"'));
+		}
 		for (const [language, phrase] of Object.entries(phrases)) {
 			let response = await get("/poem", language);
 			let html = await response.text();

@@ -33,6 +33,7 @@ bun run dev
 3. 회원가입 또는 로그인 후 글을 작성합니다. 제목 1~100자, 본문 1~10,000자를 지원합니다.
 4. 작성한 글의 Drawer에서 수정·삭제합니다. 다른 계정으로 로그인하면 편집 버튼이 표시되지 않고, 직접 API를 호출해도 거부됩니다.
 5. 상세 URL을 새로고침하거나 뒤로가기를 사용한 뒤 로그아웃합니다.
+6. 로그인 후 상단의 공용 채팅(`/chat`)을 엽니다. 다른 브라우저나 계정으로 같은 화면을 열어 실시간 메시지를 주고받습니다. 채팅에는 실행 중인 Valkey와 `VALKEY_URL` 설정이 필요합니다.
 
 글자 수는 Unicode 코드 포인트 수로 계산합니다. 글은 모두 공개되며 일반 텍스트와 줄바꿈을 보존합니다. 자동 번역·댓글·좋아요·이미지 업로드·프로필·결제는 구현 범위에서 제외했습니다.
 
@@ -41,6 +42,7 @@ bun run dev
 ```text
 Browser → React Router loader/action → Elysia → Valkey (목록 캐시)
                                              → Drizzle → SQLite (원본)
+Browser ← WebSocket → Elysia ← Valkey pub/sub → Elysia ← WebSocket → Browser
 
 react_router/   SSR 페이지, 폼 action, 카드/Drawer, 번역 TOML
 elysia/         API, 인증, DB 스키마·마이그레이션·샘플 데이터
@@ -70,6 +72,7 @@ Frontend는 React Router **7.18.0**, React 19, Tailwind 4와 기존 shadcn/Vaul 
 | POST   | `/api/auth/signin`                 | `{ email, password }`                                 |
 | POST   | `/api/auth/signout`                | 세션 폐기                                             |
 | GET    | `/api/auth/me`                     | `{ user: { id, nickname } }`                          |
+| WS     | `/api/chat`                        | 로그인한 회원의 공용 채팅 (세션 쿠키·Origin 검사)       |
 | GET    | `/api/posts?language=ko-KR&page=1` | `{ items, page, pageSize, total }`, 언어 생략 시 전체 |
 | POST   | `/api/posts`                       | `{ title, content, language }`                        |
 | GET    | `/api/posts/:id`                   | 본문을 포함한 글 상세                                 |
@@ -81,6 +84,14 @@ Frontend는 React Router **7.18.0**, React 19, Tailwind 4와 기존 shadcn/Vaul 
 오류 형식은 `{ code, fieldErrors? }`입니다. API는 미인증 401, 권한 없음 403, 없음 404, 이메일 중복 409, 입력 오류 422, 내부 오류 500을 사용합니다. Frontend가 API에 연결하지 못하면 502를 표시하며 작성·수정 초안을 보존합니다. React Router 자체의 외부 Origin 폼 차단은 400으로 반환됩니다.
 
 ## 설정과 저장소
+
+WebSocket 입력은 JSON `{ "content": "안녕하세요" }`입니다. 서버 이벤트는 `{ type: "ready" }`, `{ type: "message", message: { id, content, author: { id, nickname }, createdAt } }`, 발행 확인 `{ type: "sent" }`, 입력 오류 `{ type: "error", code: "CHAT_LENGTH" }`입니다. 발행 확인은 모든 상대방의 수신을 보장하지 않습니다. 미인증·Origin 위반·Valkey 장애는 연결 전 각각 HTTP 401·403·503으로 거부하며, 연결 후 세션 무효는 종료 코드 1008, Valkey 연결 장애는 1013을 사용합니다.
+
+채팅은 공용방 1개이며 한 메시지는 공백만으로 구성할 수 없는 **1~1,000 Unicode 코드 포인트**의 일반 텍스트입니다. 작성자·메시지 ID·UTC 전송 시각은 서버에서 정합니다. 서버는 메시지를 Valkey의 `temppj:chat:public:v1` 채널에 발행하며, 각 Backend는 구독으로 받은 메시지를 자기 접속자에게 전달합니다. 게시글 캐시와 별도의 발행·구독 연결을 사용합니다. 같은 Valkey를 사용하는 이 프로젝트의 Backend는 같은 채팅방을 공유하므로 독립된 시연 환경에는 별도 Valkey를 사용하세요.
+
+채팅 이력은 DB나 Valkey 키에 저장하지 않습니다. 화면에는 현재 페이지에서 수신한 최근 **100개**만 남고, 연결이 끊긴 동안의 메시지는 복구되지 않습니다. Valkey가 없거나 연결이 끊기면 채팅만 이용 불가로 표시됩니다. 복구 후 **다시 연결**을 누르면 재접속합니다. 전송 확인 전에는 초안을 지우지 않으며, 전달 여부가 불확실하면 초안을 보존하고 자동 재전송하지 않습니다. 재전송 전 대화를 확인하세요. 로그인 세션은 연결 시와 메시지 송수신 시 검사하므로 로그아웃·만료된 기존 연결도 다음 송수신에서 종료됩니다.
+
+브라우저 WebSocket은 React Router를 거치지 않고 Backend에 직접 연결합니다. 로컬에서는 `API_URL`의 포트와 현재 브라우저 호스트(`localhost` 또는 `127.0.0.1`)를 사용합니다. Backend는 `APP_ORIGIN` 및 같은 프로토콜·포트의 두 로컬 호스트만 허용합니다. 별도 호스트·HTTPS 공개 배포에는 WebSocket 주소·Origin·TLS·프록시 설정이 추가로 필요하며 현재 로컬 시연 범위에는 포함하지 않습니다.
 
 기본값으로 바로 실행할 수 있습니다. 변경이 필요하면 루트 `.env.example`을 `.env`로 복사한 뒤 **루트 명령**을 사용하세요.
 
