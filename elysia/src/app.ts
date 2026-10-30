@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, count, desc, eq } from "drizzle-orm";
 import { Elysia } from "elysia";
+import { chatContent } from "../../shared/chat";
 import type { ApiError, Language, Post, PublicUser } from "../../shared/contracts";
 import {
 	isLanguage,
@@ -13,6 +14,7 @@ import {
 	validatePost,
 } from "../../shared/contracts";
 import type { PostCache } from "./cache";
+import type { Chat } from "./chat";
 import type { BoardDatabase } from "./db";
 import { logger } from "./logger";
 import { posts, sessions, users } from "./schema";
@@ -37,9 +39,11 @@ function hash(token: string) {
 
 export function createApp(
 	{ db, sqlite }: BoardDatabase,
-	options: { origin?: string; cache?: PostCache } = {},
+	options: { origin?: string; cache?: PostCache; chat?: Chat } = {},
 ) {
 	const cache = options.cache;
+	const chat = options.chat;
+	const chatListeners = new Map<string, () => void>();
 	const startedAt = new WeakMap<Request, number>();
 	const origin = options.origin ?? process.env.APP_ORIGIN ?? "http://localhost:3000";
 	const secure = new URL(origin).protocol === "https:";
@@ -102,7 +106,15 @@ export function createApp(
 			language: fields.language as Language,
 		};
 	}
-	return new Elysia()
+	const chatOrigins = new Set([origin]);
+	const localOrigin = new URL(origin);
+	if (["localhost", "127.0.0.1"].includes(localOrigin.hostname)) {
+		localOrigin.hostname = localOrigin.hostname === "localhost" ? "127.0.0.1" : "localhost";
+		chatOrigins.add(localOrigin.origin);
+	}
+	return new Elysia({
+		websocket: { maxPayloadLength: 16384, backpressureLimit: 65536, closeOnBackpressureLimit: true },
+	})
 		.onRequest(({ request }) => {
 			startedAt.set(request, performance.now());
 		})
@@ -187,6 +199,60 @@ export function createApp(
 			return new Response(null, { status: 204 });
 		})
 		.get("/api/auth/me", ({ request }) => ({ user: requireUser(request) }))
+		.ws("/api/chat", {
+			async beforeHandle({ request }) {
+				if (!chatOrigins.has(request.headers.get("origin") ?? "")) fail(403, "ORIGIN_FORBIDDEN");
+				requireUser(request);
+				if (!chat || !(await chat.connect())) fail(503, "CHAT_UNAVAILABLE");
+			},
+			open(ws) {
+				if (!chat?.ready) {
+					ws.close(1013, "CHAT_UNAVAILABLE");
+					return;
+				}
+				const remove = chat.listen((message) => {
+					if (!message) {
+						ws.close(1013, "CHAT_UNAVAILABLE");
+						return;
+					}
+					if (!currentUser(ws.data.request)) {
+						ws.close(1008, "UNAUTHENTICATED");
+						return;
+					}
+					ws.send({ type: "message", message });
+				});
+				chatListeners.set(ws.id, remove);
+				ws.send({ type: "ready" });
+			},
+			async message(ws, input) {
+				const user = currentUser(ws.data.request);
+				if (!user) {
+					ws.close(1008, "UNAUTHENTICATED");
+					return;
+				}
+				const content = chatContent(input);
+				if (content === null) {
+					ws.send({ type: "error", code: "CHAT_LENGTH" });
+					return;
+				}
+				try {
+					if (!chat) throw new Error("CHAT_UNAVAILABLE");
+					await chat.publish({
+						id: crypto.randomUUID(),
+						content,
+						author: user,
+						createdAt: new Date().toISOString(),
+					});
+					ws.send({ type: "sent" });
+				} catch {
+					ws.close(1013, "CHAT_UNAVAILABLE");
+				}
+			},
+			close(ws) {
+				chatListeners.get(ws.id)?.();
+				chatListeners.delete(ws.id);
+			},
+		})
 		.get("/api/posts", async ({ query, set }) => {
 			if (query.language && !isLanguage(query.language))
 				fail(422, "VALIDATION", { language: "LANGUAGE_INVALID" });

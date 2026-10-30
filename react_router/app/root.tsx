@@ -74,6 +74,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 							<Link to="/poem" className="hover:underline">
 								{t("browseStories")}
 							</Link>
+							<Link to="/chat" className="hover:underline">
+								{t("chatTitle")}
+							</Link>
 							<Form method="post" action="/api/cookie/lang" className="flex items-center gap-1">
 								<Globe2 size={16} aria-hidden="true" />
 								<input type="hidden" name="returnTo" value={location.pathname + location.search} />
