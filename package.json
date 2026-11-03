@@ -4,9 +4,14 @@
 	"type": "module",
 	"workspaces": [
 		"elysia",
+		"fastapi",
 		"react_router"
 	],
 	"scripts": {
+		"setup:fastapi": "bun run --cwd fastapi setup",
+		"dev:fastapi": "bun run --parallel --filter fastapi_backend --filter temppj_f dev",
+		"start:fastapi": "bun run --cwd fastapi start",
+		"test:fastapi": "bun run build && bun run --cwd fastapi test && TEMPPJ_TEST_BACKEND=fastapi bun test shared react_router/tests",
 		"setup": "bun run --cwd elysia setup",
 		"dev": "bun run --parallel --filter 'temppj_*' dev",
 		"test": "bun run build && bun test elysia/src shared react_router/tests",

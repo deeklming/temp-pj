@@ -4,6 +4,30 @@ React Router SSR과 Elysia로 만든 다국어 게시판입니다. 기존 poem �
 
 ## 실행
 
+### FastAPI 백엔드 선택
+
+기존 Elysia 명령은 그대로 유지합니다. Python **3.13**과 [uv](https://docs.astral.sh/uv/)를 설치한 뒤, 루트에서 다음 명령으로 FastAPI와 같은 React Router 화면을 실행할 수 있습니다.
+
+```bash
+bun install
+bun run setup:fastapi
+bun run dev:fastapi
+```
+
+FastAPI는 SQLModel과 SQLite를 사용하며 인증·게시글 CRUD·Valkey 목록 캐시·공용 WebSocket 채팅의 기존 API 규격을 제공합니다. Python 의존성은 `fastapi/uv.lock`으로 고정합니다. 기본 API 주소는 기존과 같은 `http://127.0.0.1:3001`이므로 해당 포트에서는 백엔드 하나만 실행하세요.
+
+DB는 별도 `fastapi/db/board.sqlite`입니다. 기존 Elysia 계정·글·세션은 이전하지 않으며 백엔드를 바꾸면 다시 로그인해야 합니다. setup은 동일한 데모 계정 2개와 게시글 206개를 준비하고 기존 글은 덮어쓰지 않습니다. `DATABASE_PATH`의 상대 경로는 각 백엔드 디렉터리 기준입니다. 루트 `.env`를 읽으며 명시한 환경변수가 우선합니다.
+
+```bash
+bun run start:fastapi
+bun run test:fastapi
+uv run --project fastapi alembic -c fastapi/alembic.ini revision --autogenerate -m change
+```
+
+서버 시작과 setup은 미적용 Alembic 마이그레이션을 적용합니다. `test:fastapi`는 Python 검사와 FastAPI 대상 SSR 검사를 실행합니다. 실제 Valkey 검사는 `VALKEY_URL`이 있을 때 실행합니다. Valkey 없이 게시판은 동작하며 채팅은 사용할 수 없습니다. 같은 Valkey의 `temppj:chat:public:v1` 채널을 사용하는 두 백엔드는 같은 공용 채팅방에 참여합니다.
+
+FastAPI 로그는 콘솔과 루트 `logs/fastapi/YYYY-MM-DD.log`에 기록합니다. 쿠키·비밀번호·요청 본문·쿼리 문자열은 기록하지 않습니다. Python 소스 검사는 `uv run --project fastapi ruff check fastapi`와 `uv run --project fastapi ruff format --check fastapi`를 사용합니다.
+
 Node.js **22 이상**, Bun **1.3.14 이상**이 필요합니다. Windows PowerShell에서도 같은 명령을 사용합니다.
 
 ```bash

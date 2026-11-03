@@ -1,0 +1,1 @@
+"""Compatible multilingual board API."""
