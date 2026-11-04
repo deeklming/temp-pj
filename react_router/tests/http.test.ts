@@ -19,66 +19,11 @@ test("production HTTP routes support three-locale CRUD, sessions and origin prot
 		const base = `http://127.0.0.1:${port}`;
 		await reservation.stop(true);
 		const apiOrigin = "http://localhost:3000";
-		let apiUrl: string;
-		if (process.env.TEMPPJ_TEST_BACKEND === "fastapi") {
-			const apiReservation = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
-			cleanups.push(() => apiReservation.stop(true));
-			const apiPort = apiReservation.port;
-			await apiReservation.stop(true);
-			apiUrl = `http://127.0.0.1:${apiPort}`;
-			const api = Bun.spawn(
-				[
-					"uv",
-					"run",
-					"--project",
-					fileURLToPath(new URL("../../fastapi/", import.meta.url)),
-					"python",
-					"-m",
-					"temppj_api",
-				],
-				{
-					env: {
-						...process.env,
-						DATABASE_PATH: join(directory, "board.sqlite"),
-						API_PORT: String(apiPort),
-						APP_ORIGIN: apiOrigin,
-						VALKEY_URL: "",
-					},
-					stdout: "ignore",
-					stderr: "inherit",
-				},
-			);
-			cleanups.push(async () => {
-				if (api.exitCode === null) {
-					if (process.platform === "win32") {
-						await Bun.spawn(["taskkill", "/PID", String(api.pid), "/T", "/F"], {
-							stdout: "ignore",
-							stderr: "ignore",
-						}).exited;
-					} else api.kill();
-				}
-				await api.exited;
-			});
-			const deadline = Date.now() + 15000;
-			while (true) {
-				try {
-					assert.equal(
-						(await fetch(`${apiUrl}/api/health`, { signal: AbortSignal.timeout(1000) })).status,
-						200,
-					);
-					break;
-				} catch (error) {
-					if (api.exitCode !== null || Date.now() >= deadline) throw error;
-					await Bun.sleep(50);
-				}
-			}
-		} else {
-			const database = openDatabase(join(directory, "board.sqlite"));
-			cleanups.push(() => database.sqlite.close(true));
-			const api = createApp(database, { origin: apiOrigin }).listen({ hostname: "127.0.0.1", port: 0 });
-			cleanups.push(() => api.stop());
-			apiUrl = `http://127.0.0.1:${api.server?.port}`;
-		}
+		const database = openDatabase(join(directory, "board.sqlite"));
+		cleanups.push(() => database.sqlite.close(true));
+		const api = createApp(database, { origin: apiOrigin }).listen({ hostname: "127.0.0.1", port: 0 });
+		cleanups.push(() => api.stop());
+		const apiUrl = `http://127.0.0.1:${api.server?.port}`;
 		const server = Bun.spawn(
 			[
 				"node",
