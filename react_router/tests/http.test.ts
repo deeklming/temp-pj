@@ -13,16 +13,17 @@ test("production HTTP routes support three-locale CRUD, sessions and origin prot
 	try {
 		const directory = mkdtempSync(join(tmpdir(), "temppj-http-"));
 		cleanups.push(() => rmSync(directory, { recursive: true, force: true }));
-		const database = openDatabase(join(directory, "board.sqlite"));
-		cleanups.push(() => database.sqlite.close(true));
 		const reservation = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
 		cleanups.push(() => reservation.stop(true));
 		const port = reservation.port;
 		const base = `http://127.0.0.1:${port}`;
 		await reservation.stop(true);
 		const apiOrigin = "http://localhost:3000";
+		const database = openDatabase(join(directory, "board.sqlite"));
+		cleanups.push(() => database.sqlite.close(true));
 		const api = createApp(database, { origin: apiOrigin }).listen({ hostname: "127.0.0.1", port: 0 });
 		cleanups.push(() => api.stop());
+		const apiUrl = `http://127.0.0.1:${api.server?.port}`;
 		const server = Bun.spawn(
 			[
 				"node",
@@ -37,7 +38,7 @@ test("production HTTP routes support three-locale CRUD, sessions and origin prot
 					HOST: "127.0.0.1",
 					PORT: String(port),
 					APP_ORIGIN: apiOrigin,
-					API_URL: `http://127.0.0.1:${api.server?.port}`,
+					API_URL: apiUrl,
 				},
 				stdout: "ignore",
 				stderr: "inherit",
