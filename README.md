@@ -22,6 +22,47 @@
 - Elysia의 인증·게시글·채팅을 Python으로 이식하고, 같은 HTTP·WebSocket 계약으로 React Router와 연동합니다.
 - SQLModel과 Alembic으로 독립 SQLite DB를 관리합니다. 설치·실행·테스트는 Python 3.13과 `uv`로 수행합니다.
 
+## ERD
+
+Elysia와 FastAPI는 각각의 SQLite DB에 아래 구조로 데이터를 저장합니다. 사용자 한 명은 여러 세션과 게시글을 가질 수 있으며, 각 세션과 게시글은 한 사용자에 속합니다.
+
+```mermaid
+erDiagram
+    users ||--o{ sessions : "세션 발급"
+    users ||--o{ posts : "게시글 작성"
+
+    users {
+        text id PK
+        text email UK
+        text nickname
+        text password_hash "Argon2id 해시"
+        text created_at "UTC ISO 8601"
+    }
+
+    sessions {
+        text token_hash PK "SHA-256 세션 토큰 해시"
+        text user_id FK
+        int64 expires_at "Unix 밀리초"
+    }
+
+    posts {
+        text id PK
+        text author_id FK
+        text title
+        text content
+        text language "ko-KR, en-US, ja-JP"
+        text created_at "UTC ISO 8601"
+        text updated_at "UTC ISO 8601"
+    }
+```
+
+- 모든 컬럼은 `NOT NULL`입니다. `PK`는 기본키, `FK`는 외래키, `UK`는 고유키를 뜻합니다. 이메일은 고유 인덱스로 중복을 방지합니다.
+- `sessions.user_id`와 `posts.author_id`는 `users.id`를 참조합니다. 사용자 삭제 시 연결된 세션과 게시글도 `ON DELETE CASCADE`로 삭제됩니다.
+- 게시글 언어는 `CHECK` 제약조건으로 제한합니다. 세션의 사용자별 조회, 게시글의 최신순·언어별 조회에 인덱스를 사용합니다.
+- 세션 만료 시각은 두 백엔드 모두 밀리초 단위 정수로 저장하며, 선언 타입은 Elysia에서 `INTEGER`, FastAPI에서 `BIGINT`입니다.
+
+스키마 정의는 [Elysia 모델](elysia/src/schema.ts)과 [FastAPI 모델](fastapi/src/temppj_api/models.py)에서 확인할 수 있습니다.
+
 ## 로컬 실행
 
 프런트엔드는 `http://localhost:3000`, 기본 백엔드 상태 확인 주소는 `http://127.0.0.1:3001/api/health`입니다. 기본 포트 3001에서는 백엔드 하나만 실행합니다.
